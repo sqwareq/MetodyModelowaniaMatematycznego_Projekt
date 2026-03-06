@@ -1,124 +1,120 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy import signal
+from matplotlib.widgets import Slider
 import control as ct
 
-# --- PARAMETRY SYMULACJI ---
-t_start = 0.0
-t_stop = 20.0
-dt = 0.01  # krok całkowania/próbkowania
-t = np.arange(t_start, t_stop, dt) # wektor czasu
+# Importujemy nasze moduły
+from sygnaly import generuj_sygnaly
+from uklad import zbuduj_uklad_zamkniety
 
-# --- GENERACJA SYGNAŁÓW WEJŚCIOWYCH (WARTOŚCI ZADANYCH) ---
+# --- 1. PARAMETRY SYMULACJI (CZAS) ---
+t = np.arange(0.0, 20.0, 0.01)
 
-# 1. Sygnał prostokątny o skończonym czasie trwania (np. impuls od 2s do 6s)
-u_rect = np.where((t >= 2) & (t <= 6), 1.0, 0.0)
+# --- 2. PRZYGOTOWANIE GŁÓWNEGO OKNA ---
+fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(14, 10))
+plt.subplots_adjust(bottom=0.45, hspace=0.4) # Dużo miejsca na dole na suwaki
 
-# 2. Sygnał trójkątny (amplituda 1, częstotliwość 0.5 Hz)
-freq_tri = 0.5
-u_tri = signal.sawtooth(2 * np.pi * freq_tri * t, 0.5)
+# Inicjalizacja wykresów "na pusto" (dane podmienimy przy pierwszym uruchomieniu update)
+line_u_rect, = ax1.plot(t, np.zeros_like(t), 'k--', linewidth=1.5, label='Wartość zadana')
+line_y_rect, = ax1.plot(t, np.zeros_like(t), 'b-', linewidth=2, label='Odpowiedź (PID)')
 
-# 3. Sygnał harmoniczny (sinusoida, amplituda 1, częstotliwość 1 Hz)
-freq_sin = 1.0
-u_sin = np.sin(2 * np.pi * freq_sin * t)
+line_u_tri, = ax2.plot(t, np.zeros_like(t), 'k--', linewidth=1.5, label='Wartość zadana')
+line_y_tri, = ax2.plot(t, np.zeros_like(t), 'r-', linewidth=2, label='Odpowiedź (PID)')
 
-# --- WYKRESY KONTROLNE SYGNAŁÓW ---
-plt.figure(figsize=(10, 6))
+line_u_sin, = ax3.plot(t, np.zeros_like(t), 'k--', linewidth=1.5, label='Wartość zadana')
+line_y_sin, = ax3.plot(t, np.zeros_like(t), 'g-', linewidth=2, label='Odpowiedź (PID)')
 
-plt.subplot(3, 1, 1)
-plt.plot(t, u_rect, label='Sygnał prostokątny', color='blue')
-plt.grid(True)
-plt.legend()
+for ax in [ax1, ax2, ax3]:
+    ax.grid(True)
+    ax.legend(loc='upper right')
+    ax.set_ylabel('Amplituda')
 
-plt.subplot(3, 1, 2)
-plt.plot(t, u_tri, label='Sygnał trójkątny', color='orange')
-plt.grid(True)
-plt.legend()
+ax1.set_title('Sygnał prostokątny')
+ax2.set_title('Sygnał trójkątny')
+ax3.set_title('Sygnał harmoniczny')
+ax3.set_xlabel('Czas [s]')
 
-plt.subplot(3, 1, 3)
-plt.plot(t, u_sin, label='Sygnał harmoniczny', color='green')
-plt.xlabel('Czas [s]')
-plt.grid(True)
-plt.legend()
+# --- 3. TWORZENIE SUWAKÓW ---
+axcolor = 'lightgoldenrodyellow'
 
-plt.tight_layout()
-plt.show()
+# Kolumna 1: Regulator PID (lewa strona)
+ax_Kp = plt.axes([0.08, 0.30, 0.2, 0.03], facecolor=axcolor)
+ax_Ki = plt.axes([0.08, 0.25, 0.2, 0.03], facecolor=axcolor)
+ax_Kd = plt.axes([0.08, 0.20, 0.2, 0.03], facecolor=axcolor)
+ax_Tf = plt.axes([0.08, 0.15, 0.2, 0.03], facecolor=axcolor)
 
-# --- 2. PARAMETRY TRANSMITANCJI I REGULATORA ---
-# Zmienna 's' Laplace'a
-s = ct.TransferFunction.s
+s_Kp = Slider(ax_Kp, 'Kp', 0.0, 20.0, valinit=5.0)
+s_Ki = Slider(ax_Ki, 'Ki', 0.0, 20.0, valinit=2.0)
+s_Kd = Slider(ax_Kd, 'Kd', 0.0, 10.0, valinit=1.0)
+s_Tf = Slider(ax_Tf, 'Tf', 0.01, 1.0, valinit=0.05)
 
-# Parametry obiektu Go(s) - na razie wpisujemy przykładowe wartości
-a1, a0 = 1.0, 1.0
-b2, b1, b0 = 1.0, 2.0, 1.0
+# Kolumna 2: Parametry Obiektu Go (środek)
+ax_a1 = plt.axes([0.40, 0.35, 0.2, 0.03], facecolor=axcolor)
+ax_a0 = plt.axes([0.40, 0.30, 0.2, 0.03], facecolor=axcolor)
+ax_b2 = plt.axes([0.40, 0.25, 0.2, 0.03], facecolor=axcolor)
+ax_b1 = plt.axes([0.40, 0.20, 0.2, 0.03], facecolor=axcolor)
+ax_b0 = plt.axes([0.40, 0.15, 0.2, 0.03], facecolor=axcolor)
 
-# Tworzenie transmitancji obiektu
-Go = (a1 * s + a0) / (b2 * s**2 + b1 * s + b0)
+s_a1 = Slider(ax_a1, 'a1', 0.0, 10.0, valinit=1.0)
+s_a0 = Slider(ax_a0, 'a0', 0.0, 10.0, valinit=1.0)
+s_b2 = Slider(ax_b2, 'b2', 0.1, 10.0, valinit=1.0)
+s_b1 = Slider(ax_b1, 'b1', 0.0, 10.0, valinit=2.0)
+s_b0 = Slider(ax_b0, 'b0', 0.0, 10.0, valinit=1.0)
 
-# Parametry regulatora PID (do późniejszego strojenia)
-Kp = 5.0
-Ki = 2.0
-Kd = 1.0
-Tf = 0.05 # Stała czasowa filtra różniczkowania (musi być > 0)
+# Kolumna 3: Sygnały wejściowe (prawa strona)
+ax_amp_r = plt.axes([0.72, 0.30, 0.2, 0.03], facecolor=axcolor)
+ax_frq_t = plt.axes([0.72, 0.25, 0.2, 0.03], facecolor=axcolor)
+ax_frq_s = plt.axes([0.72, 0.20, 0.2, 0.03], facecolor=axcolor)
 
-# Tworzenie transmitancji realizowalnego PID
-Gpid = Kp + (Ki / s) + (Kd * s) / (Tf * s + 1)
+s_amp_r = Slider(ax_amp_r, 'Amp Prost.', 0.1, 5.0, valinit=1.0)
+s_frq_t = Slider(ax_frq_t, 'Częst. Trójk.', 0.05, 2.0, valinit=0.1)
+s_frq_s = Slider(ax_frq_s, 'Częst. Sin.', 0.05, 2.0, valinit=0.2)
 
-# --- 3. UKŁAD ZAMKNIĘTY ---
-# Transmitancja układu otwartego (regulator * obiekt)
-G_otwarty = Gpid * Go
+# --- 4. FUNKCJA AKTUALIZUJĄCA OBLICZENIA (SERCE PROGRAMU) ---
+def update(val):
+    # 1. Odczytujemy stan suwaków z sygnałami i generujemy je
+    u_rect, u_tri, u_sin = generuj_sygnaly(t, s_amp_r.val, s_frq_t.val, s_frq_s.val)
+    
+    # 2. Odczytujemy parametry układu i budujemy transmitancję
+    G_zamkniety = zbuduj_uklad_zamkniety(
+        s_a1.val, s_a0.val, 
+        s_b2.val, s_b1.val, s_b0.val, 
+        s_Kp.val, s_Ki.val, s_Kd.val, s_Tf.val
+    )
+    
+    # 3. Przeprowadzamy symulację
+    resp_rect = ct.forced_response(G_zamkniety, T=t, U=u_rect)
+    resp_tri  = ct.forced_response(G_zamkniety, T=t, U=u_tri)
+    resp_sin  = ct.forced_response(G_zamkniety, T=t, U=u_sin)
+    
+    # 4. Aktualizujemy wykresy (wartości zadane oraz odpowiedzi PID)
+    line_u_rect.set_ydata(u_rect)
+    line_y_rect.set_ydata(resp_rect.y[0])
+    
+    line_u_tri.set_ydata(u_tri)
+    line_y_tri.set_ydata(resp_tri.y[0])
+    
+    line_u_sin.set_ydata(u_sin)
+    line_y_sin.set_ydata(resp_sin.y[0])
+    
+    # 5. Skalowanie osi Y, jeśli sygnał jest większy niż domyślny podgląd
+    for ax in [ax1, ax2, ax3]:
+        ax.relim()
+        ax.autoscale_view()
+        
+    fig.canvas.draw_idle()
 
-# Transmitancja układu zamkniętego (ujemne sprzężenie zwrotne)
-# feedback(sys1, sys2) domyślnie robi ujemne sprzężenie: sys1 / (1 + sys1*sys2)
-# U nas w sprzężeniu zwrotnym nic nie ma, więc wstawiamy 1.
-G_zamkniety = ct.feedback(G_otwarty, 1)
+# Podpinamy funkcję aktualizującą pod każdy z suwaków
+wszystkie_suwaki = [
+    s_Kp, s_Ki, s_Kd, s_Tf, 
+    s_a1, s_a0, s_b2, s_b1, s_b0, 
+    s_amp_r, s_frq_t, s_frq_s
+]
+for suwak in wszystkie_suwaki:
+    suwak.on_changed(update)
 
-print("Transmitancja układu zamkniętego:")
-print(G_zamkniety)
+# Wywołujemy funkcję ręcznie raz na początku, aby narysować wykresy
+update(None)
 
-# --- 4. SYMULACJA ODPOWIEDZI UKŁADU ---
-print("Obliczam symulację...")
-
-# Przypisujemy cały wynik do zmiennej (np. resp_rect), a potem wyciągamy z niej samo 'y'
-resp_rect = ct.forced_response(G_zamkniety, T=t, U=u_rect)
-y_rect = resp_rect.y[0]
-
-resp_tri = ct.forced_response(G_zamkniety, T=t, U=u_tri)
-y_tri = resp_tri.y[0]
-
-resp_sin = ct.forced_response(G_zamkniety, T=t, U=u_sin)
-y_sin = resp_sin.y[0]
-
-# --- 5. RYSOWANIE WYNIKÓW ---
-plt.figure(figsize=(12, 10))
-
-# Wykres 1: Sygnał prostokątny
-plt.subplot(3, 1, 1)
-plt.plot(t, u_rect, 'k--', linewidth=2, label='Wartość zadana (wymuszenie)')
-plt.plot(t, y_rect, 'b-', linewidth=2, label='Odpowiedź układu (PID)')
-plt.title('Odpowiedź układu na sygnał prostokątny')
-plt.ylabel('Amplituda')
-plt.grid(True)
-plt.legend()
-
-# Wykres 2: Sygnał trójkątny
-plt.subplot(3, 1, 2)
-plt.plot(t, u_tri, 'k--', linewidth=2, label='Wartość zadana (wymuszenie)')
-plt.plot(t, y_tri, 'r-', linewidth=2, label='Odpowiedź układu (PID)')
-plt.title('Odpowiedź układu na sygnał trójkątny')
-plt.ylabel('Amplituda')
-plt.grid(True)
-plt.legend()
-
-# Wykres 3: Sygnał harmoniczny
-plt.subplot(3, 1, 3)
-plt.plot(t, u_sin, 'k--', linewidth=2, label='Wartość zadana (wymuszenie)')
-plt.plot(t, y_sin, 'g-', linewidth=2, label='Odpowiedź układu (PID)')
-plt.title('Odpowiedź układu na sygnał harmoniczny')
-plt.xlabel('Czas [s]')
-plt.ylabel('Amplituda')
-plt.grid(True)
-plt.legend()
-
-plt.tight_layout()
+# Wyświetlamy gotowe okno
 plt.show()
